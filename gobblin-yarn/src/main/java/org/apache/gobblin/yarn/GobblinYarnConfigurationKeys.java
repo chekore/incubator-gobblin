@@ -35,6 +35,8 @@ public class GobblinYarnConfigurationKeys {
       GOBBLIN_YARN_PREFIX + "email.notification.on.shutdown";
   public static final String RELEASED_CONTAINERS_CACHE_EXPIRY_SECS = GOBBLIN_YARN_PREFIX + "releasedContainersCacheExpirySecs";
   public static final int DEFAULT_RELEASED_CONTAINERS_CACHE_EXPIRY_SECS = 300;
+  public static final String APP_VIEW_ACL = GOBBLIN_YARN_PREFIX + "appViewAcl";
+  public static final String DEFAULT_APP_VIEW_ACL = "*";
 
   // Gobblin Yarn ApplicationMaster configuration properties.
   public static final String APP_MASTER_MEMORY_MBS_KEY = GOBBLIN_YARN_PREFIX + "app.master.memory.mbs";
@@ -84,15 +86,23 @@ public class GobblinYarnConfigurationKeys {
   // Resource/dependencies configuration properties.
   public static final String LIB_JARS_DIR_KEY = GOBBLIN_YARN_PREFIX + "lib.jars.dir";
 
-  public static final String LOGS_SINK_ROOT_DIR_KEY = GOBBLIN_YARN_PREFIX + "logs.sink.root.dir";
   public static final String LIB_JARS_DIR_NAME = "_libjars";
   public static final String APP_JARS_DIR_NAME = "_appjars";
   public static final String APP_FILES_DIR_NAME = "_appfiles";
   public static final String APP_LOGS_DIR_NAME = "_applogs";
 
+  //Container Log location properties
+  public static final String GOBBLIN_YARN_CONTAINER_LOG_DIR_NAME = GobblinYarnConfigurationKeys.GOBBLIN_YARN_PREFIX + "app.container.log.dir";
+  public static final String GOBBLIN_YARN_CONTAINER_LOG_FILE_NAME = GobblinYarnConfigurationKeys.GOBBLIN_YARN_PREFIX + "app.container.log.file";
+
   // Other misc configuration properties.
-  public static final String LOG_COPIER_SCHEDULER = GOBBLIN_YARN_PREFIX + "log.copier.scheduler";
-  public static final String LOG_COPIER_MAX_FILE_SIZE = GOBBLIN_YARN_PREFIX + "log.copier.max.file.size";
-  public static final String GOBBLIN_YARN_LOG4J_CONFIGURATION_FILE = "log4j-yarn.properties";
+  public static final String LOGS_SINK_ROOT_DIR_KEY = GOBBLIN_YARN_PREFIX + "logs.sink.root.dir";
+  public static final String LOG_FILE_EXTENSIONS = GOBBLIN_YARN_PREFIX + "log.file.extensions" ;
   public static final String LOG_COPIER_DISABLE_DRIVER_COPY = GOBBLIN_YARN_PREFIX + "log.copier.disable.driver.copy";
+  public static final String GOBBLIN_YARN_CONTAINER_TIMEZONE = GOBBLIN_YARN_PREFIX + "container.timezone" ;
+  public static final String DEFAULT_GOBBLIN_YARN_CONTAINER_TIMEZONE = "America/Los_Angeles" ;
+
+  //Constant definitions
+  public static final String GOBBLIN_YARN_LOG4J_CONFIGURATION_FILE = "log4j-yarn.properties";
+  public static final String JVM_USER_TIMEZONE_CONFIG = "user.timezone";
 }

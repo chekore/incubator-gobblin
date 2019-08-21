@@ -19,10 +19,12 @@ package org.apache.gobblin.service.modules.spec;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.concurrent.Future;
 
 import org.apache.commons.lang3.StringUtils;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Optional;
 import com.google.common.base.Strings;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -52,15 +54,16 @@ import org.apache.gobblin.util.ConfigUtils;
  * where the {@link JobSpec} will be executed.
  */
 @Data
-@EqualsAndHashCode(exclude = {"executionStatus", "currentAttempts"})
+@EqualsAndHashCode(exclude = {"executionStatus", "currentAttempts", "jobFuture"})
 public class JobExecutionPlan {
   public static final String JOB_MAX_ATTEMPTS = "job.maxAttempts";
 
   private final JobSpec jobSpec;
   private final SpecExecutor specExecutor;
-  private ExecutionStatus executionStatus = ExecutionStatus.$UNKNOWN;
+  private ExecutionStatus executionStatus = ExecutionStatus.PENDING;
   private final int maxAttempts;
   private int currentAttempts = 0;
+  private Optional<Future> jobFuture = Optional.absent();
 
   public static class Factory {
     public static final String JOB_NAME_COMPONENT_SEPARATION_CHAR = "_";
@@ -85,11 +88,10 @@ public class JobExecutionPlan {
       String flowFailureOption = ConfigUtils.getString(flowConfig, ConfigurationKeys.FLOW_FAILURE_OPTION, DagManager.DEFAULT_FLOW_FAILURE_OPTION);
 
       String jobName = ConfigUtils.getString(jobConfig, ConfigurationKeys.JOB_NAME_KEY, "");
-      String source = ConfigUtils.getString(jobConfig, FlowGraphConfigurationKeys.FLOW_EDGE_SOURCE_KEY, "");
-      String destination = ConfigUtils.getString(jobConfig, FlowGraphConfigurationKeys.FLOW_EDGE_DESTINATION_KEY, "");
+      String edgeId = ConfigUtils.getString(jobConfig, FlowGraphConfigurationKeys.FLOW_EDGE_ID_KEY, "");
 
-      //Modify the job name to include the flow group, flow name and source and destination node ids for the job.
-      jobName = Joiner.on(JOB_NAME_COMPONENT_SEPARATION_CHAR).join(flowGroup, flowName, jobName, source, destination);
+      //Modify the job name to include the flow group, flow name and edge id.
+      jobName = Joiner.on(JOB_NAME_COMPONENT_SEPARATION_CHAR).join(flowGroup, flowName, jobName, edgeId);
 
       JobSpec.Builder jobSpecBuilder = JobSpec.builder(jobSpecURIGenerator(flowGroup, jobName, flowSpec)).withConfig(jobConfig)
           .withDescription(flowSpec.getDescription()).withVersion(flowSpec.getVersion());
@@ -130,7 +132,7 @@ public class JobExecutionPlan {
       // Add dynamic config to jobSpec if a dynamic config generator is specified in sysConfig
       DynamicConfigGenerator dynamicConfigGenerator = DynamicConfigGeneratorFactory.createDynamicConfigGenerator(sysConfig);
       Config dynamicConfig = dynamicConfigGenerator.generateDynamicConfig(jobSpec.getConfig().withFallback(sysConfig));
-      jobSpec.setConfig(jobSpec.getConfig().withFallback(dynamicConfig));
+      jobSpec.setConfig(dynamicConfig.withFallback(jobSpec.getConfig()));
 
       // Reset properties in Spec from Config
       jobSpec.setConfigAsProperties(ConfigUtils.configToProperties(jobSpec.getConfig()));
