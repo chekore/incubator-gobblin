@@ -14,11 +14,37 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.gobblin.cli;
+
+package org.apache.gobblin.hive;
+
+import com.google.common.util.concurrent.Striped;
+import java.io.IOException;
+import java.util.Properties;
+import java.util.concurrent.locks.Lock;
+
 
 /**
- * Represents a single command for the CLI
+ * A lock factory that provide a get method for a HiveLockImpl for a specific object
  */
-public interface Command {
-    void execute(Cli.GlobalOptions globalOptions, String[] otherArgs);
+public class HiveLockFactory {
+  protected Properties properties;
+  private final Striped<Lock> locks = Striped.lazyWeakLock(Integer.MAX_VALUE);
+  public HiveLockFactory(Properties _properties) {
+    this.properties = _properties;
+
+  }
+  public HiveLockImpl get(String name) {
+
+    return new HiveLockImpl<Lock>(locks.get(name)) {
+      @Override
+      public void lock() throws IOException {
+        this.lock.lock();
+      }
+
+      @Override
+      public void unlock() throws IOException {
+        this.lock.unlock();
+      }
+    };
+  }
 }
