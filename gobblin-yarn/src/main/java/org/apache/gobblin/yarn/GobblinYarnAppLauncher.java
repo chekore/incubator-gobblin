@@ -19,6 +19,7 @@ package org.apache.gobblin.yarn;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.EnumSet;
@@ -34,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.commons.lang3.reflect.ConstructorUtils;
 import org.apache.commons.mail.EmailException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -96,11 +98,12 @@ import org.apache.gobblin.cluster.HelixUtils;
 import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.rest.JobExecutionInfoServer;
 import org.apache.gobblin.runtime.app.ServiceBasedAppLauncher;
+import org.apache.gobblin.util.ClassAliasResolver;
 import org.apache.gobblin.util.ConfigUtils;
 import org.apache.gobblin.util.EmailUtils;
 import org.apache.gobblin.util.ExecutorsUtils;
-import org.apache.gobblin.util.io.StreamUtils;
 import org.apache.gobblin.util.JvmUtils;
+import org.apache.gobblin.util.io.StreamUtils;
 import org.apache.gobblin.util.logs.LogCopier;
 import org.apache.gobblin.yarn.event.ApplicationReportArrivalEvent;
 import org.apache.gobblin.yarn.event.GetApplicationReportFailureEvent;
@@ -208,6 +211,7 @@ public class GobblinYarnAppLauncher {
   private final int appMasterMemoryMbs;
   private final int jvmMemoryOverheadMbs;
   private final double jvmMemoryXmxRatio;
+  private Optional<AbstractYarnAppSecurityManager> securityManager = Optional.absent();
 
   private final String containerTimezone;
 
@@ -282,14 +286,29 @@ public class GobblinYarnAppLauncher {
   public void launch() throws IOException, YarnException {
     this.eventBus.register(this);
 
-    String clusterName = this.config.getString(GobblinClusterConfigurationKeys.HELIX_CLUSTER_NAME_KEY);
-    HelixUtils.createGobblinHelixCluster(
-        this.config.getString(GobblinClusterConfigurationKeys.ZK_CONNECTION_STRING_KEY), clusterName);
-    LOGGER.info("Created Helix cluster " + clusterName);
+    boolean isHelixClusterManaged = ConfigUtils.getBoolean(this.config, GobblinClusterConfigurationKeys.IS_HELIX_CLUSTER_MANAGED,
+        GobblinClusterConfigurationKeys.DEFAULT_IS_HELIX_CLUSTER_MANAGED);
+    if (isHelixClusterManaged) {
+      LOGGER.info("Helix cluster is managed; skipping creation of Helix cluster");
+    } else {
+      String clusterName = this.config.getString(GobblinClusterConfigurationKeys.HELIX_CLUSTER_NAME_KEY);
+      boolean overwriteExistingCluster = ConfigUtils.getBoolean(this.config, GobblinClusterConfigurationKeys.HELIX_CLUSTER_OVERWRITE_KEY,
+          GobblinClusterConfigurationKeys.DEFAULT_HELIX_CLUSTER_OVERWRITE);
+      LOGGER.info("Creating Helix cluster {} with overwrite: {}", clusterName, overwriteExistingCluster);
+      HelixUtils.createGobblinHelixCluster(this.config.getString(GobblinClusterConfigurationKeys.ZK_CONNECTION_STRING_KEY),
+          clusterName, overwriteExistingCluster);
+      LOGGER.info("Created Helix cluster " + clusterName);
+    }
 
     connectHelixManager();
 
     startYarnClient();
+
+    // Before setup application, first login to make sure ugi has the right token.
+    if(ConfigUtils.getBoolean(config, GobblinYarnConfigurationKeys.ENABLE_KEY_MANAGEMENT, false)) {
+      this.securityManager = Optional.of(buildSecurityManager());
+      this.securityManager.get().loginAndScheduleTokenRenewal();
+    }
 
     this.applicationId = getApplicationId();
 
@@ -305,10 +324,14 @@ public class GobblinYarnAppLauncher {
       }
     }, 0, this.appReportIntervalMinutes, TimeUnit.MINUTES);
 
+    addServices();
+  }
+
+  private void addServices() throws IOException{
     List<Service> services = Lists.newArrayList();
-    if (this.config.hasPath(GobblinYarnConfigurationKeys.KEYTAB_FILE_PATH)) {
-      LOGGER.info("Adding YarnAppSecurityManager since login is keytab based");
-      services.add(buildYarnAppSecurityManager());
+    if (this.securityManager.isPresent()) {
+      LOGGER.info("Adding KeyManagerService since key management is enabled");
+      services.add(this.securityManager.get());
     }
     if (!this.config.hasPath(GobblinYarnConfigurationKeys.LOG_COPIER_DISABLE_DRIVER_COPY) ||
         !this.config.getBoolean(GobblinYarnConfigurationKeys.LOG_COPIER_DISABLE_DRIVER_COPY)) {
@@ -330,9 +353,12 @@ public class GobblinYarnAppLauncher {
       LOGGER.warn("NOT starting the admin UI because the job execution info server is NOT enabled");
     }
 
-    this.serviceManager = Optional.of(new ServiceManager(services));
-    // Start all the services running in the ApplicationMaster
-    this.serviceManager.get().startAsync();
+    if (services.size() > 0 ) {
+      this.serviceManager = Optional.of(new ServiceManager(services));
+      this.serviceManager.get().startAsync();
+    } else {
+      serviceManager = Optional.absent();
+    }
   }
 
   /**
@@ -751,10 +777,20 @@ public class GobblinYarnAppLauncher {
     return logRootDir;
   }
 
-  private YarnAppSecurityManager buildYarnAppSecurityManager() throws IOException {
+  private AbstractYarnAppSecurityManager buildSecurityManager() throws IOException {
     Path tokenFilePath = new Path(this.fs.getHomeDirectory(), this.applicationName + Path.SEPARATOR +
         GobblinYarnConfigurationKeys.TOKEN_FILE_NAME);
-    return new YarnAppSecurityManager(this.config, this.helixManager, this.fs, tokenFilePath);
+
+    ClassAliasResolver<AbstractYarnAppSecurityManager> aliasResolver = new ClassAliasResolver<>(
+        AbstractYarnAppSecurityManager.class);
+    try {
+     return (AbstractYarnAppSecurityManager)ConstructorUtils.invokeConstructor(Class.forName(aliasResolver.resolve(
+          ConfigUtils.getString(config, GobblinYarnConfigurationKeys.SECURITY_MANAGER_CLASS, GobblinYarnConfigurationKeys.DEFAULT_SECURITY_MANAGER_CLASS))), this.config, this.helixManager, this.fs,
+          tokenFilePath);
+    } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | InstantiationException
+        | ClassNotFoundException e) {
+      throw new IOException(e);
+    }
   }
 
   @VisibleForTesting

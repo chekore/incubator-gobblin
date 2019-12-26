@@ -20,6 +20,7 @@ package org.apache.gobblin.runtime.api;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
@@ -37,7 +38,9 @@ import org.apache.gobblin.annotation.Alpha;
 import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.util.ConfigUtils;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 
 /**
@@ -49,7 +52,12 @@ import lombok.Data;
  */
 @Alpha
 @Data
+@EqualsAndHashCode(exclude={"compilationErrors"})
+@SuppressFBWarnings(value="SE_BAD_FIELD",
+    justification = "FindBugs complains about Config not being serializable, but the implementation of Config is serializable")
 public class FlowSpec implements Configurable, Spec {
+  private static final long serialVersionUID = -5511988862945107734L;
+
   /** An URI identifying the flow. */
   final URI uri;
 
@@ -73,6 +81,9 @@ public class FlowSpec implements Configurable, Spec {
   /** Child {@link Spec}s to this {@link FlowSpec} **/
   // Note that a FlowSpec can be materialized into multiple FlowSpec or JobSpec hierarchy
   final Optional<List<Spec>> childSpecs;
+
+  /** List of exceptions that occurred during compilation of this FlowSpec **/
+  final Set<String> compilationErrors = new HashSet<>();
 
   public static FlowSpec.Builder builder(URI flowSpecUri) {
     return new FlowSpec.Builder(flowSpecUri);

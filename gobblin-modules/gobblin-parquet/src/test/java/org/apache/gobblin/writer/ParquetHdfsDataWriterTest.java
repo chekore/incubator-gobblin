@@ -22,8 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.gobblin.configuration.ConfigurationKeys;
-import org.apache.gobblin.configuration.State;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
@@ -39,6 +37,9 @@ import parquet.hadoop.api.InitContext;
 import parquet.hadoop.api.ReadSupport;
 import parquet.io.api.RecordMaterializer;
 import parquet.schema.MessageType;
+
+import org.apache.gobblin.configuration.ConfigurationKeys;
+import org.apache.gobblin.configuration.State;
 
 import static org.apache.gobblin.writer.ParquetDataWriterBuilder.WRITER_PARQUET_DICTIONARY;
 import static org.apache.gobblin.writer.ParquetDataWriterBuilder.WRITER_PARQUET_DICTIONARY_PAGE_SIZE;
@@ -91,6 +92,7 @@ public class ParquetHdfsDataWriterTest {
     properties.setProp(WRITER_PARQUET_DICTIONARY_PAGE_SIZE, 1024);
     properties.setProp(WRITER_PARQUET_PAGE_SIZE, 1024);
     properties.setProp(WRITER_PARQUET_VALIDATE, true);
+    properties.setProp(ConfigurationKeys.WRITER_CODEC_TYPE, "gzip");
     return properties;
   }
 

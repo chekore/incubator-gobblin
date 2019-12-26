@@ -169,4 +169,13 @@ public class GobblinClusterConfigurationKeys {
   public static final long DEFAULT_HELIX_JOB_STOPPING_STATE_TIMEOUT_SECONDS = 300;
   public static final String CONTAINER_HEALTH_METRICS_SERVICE_ENABLED = GOBBLIN_CLUSTER_PREFIX + "container.health.metrics.service.enabled" ;
   public static final boolean DEFAULT_CONTAINER_HEALTH_METRICS_SERVICE_ENABLED = false;
+
+  //Config to enable/disable reuse of existing Helix Cluster
+  public static final String HELIX_CLUSTER_OVERWRITE_KEY = GOBBLIN_CLUSTER_PREFIX + "helix.overwrite";
+  public static final boolean DEFAULT_HELIX_CLUSTER_OVERWRITE = true;
+
+  //Config to enable/disable cluster creation. Should set this config to false if Helix-as-a-Service is used to manage
+  // the cluster
+  public static final String IS_HELIX_CLUSTER_MANAGED = GOBBLIN_CLUSTER_PREFIX + "isHelixClusterManaged";
+  public static final boolean DEFAULT_IS_HELIX_CLUSTER_MANAGED = false;
 }

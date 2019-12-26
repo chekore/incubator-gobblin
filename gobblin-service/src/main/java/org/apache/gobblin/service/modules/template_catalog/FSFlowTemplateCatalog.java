@@ -35,7 +35,6 @@ import org.apache.hadoop.fs.PathFilter;
 import com.google.common.base.Charsets;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
-import com.typesafe.config.ConfigResolveOptions;
 
 import org.apache.gobblin.annotation.Alpha;
 import org.apache.gobblin.configuration.ConfigurationKeys;
@@ -47,6 +46,8 @@ import org.apache.gobblin.service.ServiceConfigKeys;
 import org.apache.gobblin.service.modules.template.FlowTemplate;
 import org.apache.gobblin.service.modules.template.HOCONInputStreamFlowTemplate;
 import org.apache.gobblin.util.PathUtils;
+
+import static org.apache.gobblin.runtime.AbstractJobLauncher.GOBBLIN_JOB_TEMPLATE_KEY;
 
 
 /**
@@ -68,7 +69,6 @@ public class FSFlowTemplateCatalog extends FSJobCatalog implements FlowCatalogWi
   public static final String JOBS_DIR_NAME = "jobs";
   public static final String FLOW_CONF_FILE_NAME = "flow.conf";
   public static final List<String> JOB_FILE_EXTENSIONS = Arrays.asList(".job", ".template");
-  public static final String JOB_TEMPLATE_KEY = "gobblin.template.uri";
 
   protected static final String FS_SCHEME = "FS";
 
@@ -144,27 +144,26 @@ public class FSFlowTemplateCatalog extends FSJobCatalog implements FlowCatalogWi
     FileSystem fs = FileSystem.get(jobFilePath.toUri(), new Configuration());
 
     for (FileStatus fileStatus : fs.listStatus(jobFilePath, extensionFilter)) {
-      Config jobConfig = loadHoconFileAtPath(fileStatus.getPath(), true);
+      Config jobConfig = loadHoconFileAtPath(fileStatus.getPath());
       //Check if the .job file has an underlying job template
-      if (jobConfig.hasPath(JOB_TEMPLATE_KEY)) {
-        URI jobTemplateRelativeUri = new URI(jobConfig.getString(JOB_TEMPLATE_KEY));
+      if (jobConfig.hasPath(GOBBLIN_JOB_TEMPLATE_KEY)) {
+        URI jobTemplateRelativeUri = new URI(jobConfig.getString(GOBBLIN_JOB_TEMPLATE_KEY));
         if (!jobTemplateRelativeUri.getScheme().equals(FS_SCHEME)) {
           throw new RuntimeException(
               "Expected scheme " + FS_SCHEME + " got unsupported scheme " + flowTemplateDirURI.getScheme());
         }
         Path fullJobTemplatePath = PathUtils.mergePaths(new Path(templateCatalogDir), new Path(jobTemplateRelativeUri));
-        jobConfig = jobConfig.withFallback(loadHoconFileAtPath(fullJobTemplatePath, true));
+        jobConfig = jobConfig.withFallback(loadHoconFileAtPath(fullJobTemplatePath));
       }
       jobTemplates.add(new HOCONInputStreamJobTemplate(jobConfig, fileStatus.getPath().toUri(), this));
     }
     return jobTemplates;
   }
 
-  private Config loadHoconFileAtPath(Path filePath, boolean allowUnresolved)
+  private Config loadHoconFileAtPath(Path filePath)
       throws IOException {
-    ConfigResolveOptions options = ConfigResolveOptions.defaults().setAllowUnresolved(allowUnresolved);
     try (InputStream is = fs.open(filePath)) {
-      return ConfigFactory.parseReader(new InputStreamReader(is, Charsets.UTF_8)).resolve(options);
+      return ConfigFactory.parseReader(new InputStreamReader(is, Charsets.UTF_8));
     }
   }
 

@@ -139,7 +139,7 @@ public class DagManagerTest {
 
   private static Iterator<JobStatus> getMockJobStatus(String flowName, String flowGroup,  Long flowExecutionId, String jobGroup, String jobName, String eventName, boolean shouldRetry) {
     return Iterators.singletonIterator(JobStatus.builder().flowName(flowName).flowGroup(flowGroup).jobGroup(jobGroup).jobName(jobName).flowExecutionId(flowExecutionId).
-        message("Test message").eventName(eventName).startTime(5000L).shouldRetry(shouldRetry).build());
+        message("Test message").eventName(eventName).startTime(flowExecutionId + 10).shouldRetry(shouldRetry).build());
   }
 
   @Test
@@ -424,7 +424,9 @@ public class DagManagerTest {
     Iterator<JobStatus> jobStatusIterator2 = getMockJobStatus(flowName, flowGroup, flowExecutionId, jobName0, flowGroup, String.valueOf(ExecutionStatus.RUNNING), true);
     Iterator<JobStatus> jobStatusIterator3 = getMockJobStatus(flowName, flowGroup, flowExecutionId, jobName0, flowGroup, String.valueOf(ExecutionStatus.RUNNING), true);
     Iterator<JobStatus> jobStatusIterator4 = getMockJobStatus(flowName, flowGroup, flowExecutionId, jobName0, flowGroup, String.valueOf(ExecutionStatus.RUNNING), true);
-    Iterator<JobStatus> jobStatusIterator5 = getMockJobStatus(flowName, flowGroup, flowExecutionId, jobName0, flowGroup, String.valueOf(ExecutionStatus.FAILED));
+    Iterator<JobStatus> jobStatusIterator5 = getMockJobStatus(flowName, flowGroup, flowExecutionId, jobName0, flowGroup, String.valueOf(ExecutionStatus.PENDING_RETRY), true);
+    Iterator<JobStatus> jobStatusIterator6 = getMockJobStatus(flowName, flowGroup, flowExecutionId, jobName0, flowGroup, String.valueOf(ExecutionStatus.RUNNING));
+    Iterator<JobStatus> jobStatusIterator7 = getMockJobStatus(flowName, flowGroup, flowExecutionId, jobName0, flowGroup, String.valueOf(ExecutionStatus.FAILED));
 
 
     Mockito.when(_jobStatusRetriever.getJobStatusesForFlowExecution(Mockito.anyString(), Mockito.anyString(),
@@ -433,7 +435,9 @@ public class DagManagerTest {
         thenReturn(jobStatusIterator2).
         thenReturn(jobStatusIterator3).
         thenReturn(jobStatusIterator4).
-        thenReturn(jobStatusIterator5);
+        thenReturn(jobStatusIterator5).
+        thenReturn(jobStatusIterator6).
+        thenReturn(jobStatusIterator7);
 
     // Run 4 times, first job fails every time and is retried
     for (int i = 0; i < 4; i++) {
@@ -446,6 +450,17 @@ public class DagManagerTest {
       Assert.assertTrue(this.dagToJobs.get(dagId).contains(dag.getStartNodes().get(0)));
       Assert.assertEquals(dag.getStartNodes().get(0).getValue().getCurrentAttempts(), i + 1);
     }
+
+    // Got a PENDING_RETRY state
+    this._dagManagerThread.run();
+    Assert.assertEquals(this.dags.size(), 1);
+    Assert.assertEquals(this.jobToDag.size(), 1);
+    Assert.assertEquals(this.dagToJobs.size(), 1);
+
+    this._dagManagerThread.run();
+    Assert.assertEquals(this.dags.size(), 1);
+    Assert.assertEquals(this.jobToDag.size(), 1);
+    Assert.assertEquals(this.dagToJobs.size(), 1);
 
     // Last run fails and dag is cleaned up
     this._dagManagerThread.run();

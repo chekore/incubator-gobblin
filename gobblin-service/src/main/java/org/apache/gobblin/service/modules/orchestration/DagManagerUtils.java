@@ -27,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.typesafe.config.Config;
 
 import org.apache.gobblin.configuration.ConfigurationKeys;
@@ -47,7 +46,11 @@ public class DagManagerUtils {
   static long NO_SLA = -1L;
 
   static FlowId getFlowId(Dag<JobExecutionPlan> dag) {
-    Config jobConfig = dag.getStartNodes().get(0).getValue().getJobSpec().getConfig();
+    return getFlowId(dag.getStartNodes().get(0));
+  }
+
+  static FlowId getFlowId(DagNode<JobExecutionPlan> dagNode) {
+    Config jobConfig = dagNode.getValue().getJobSpec().getConfig();
     String flowGroup = jobConfig.getString(ConfigurationKeys.FLOW_GROUP_KEY);
     String flowName = jobConfig.getString(ConfigurationKeys.FLOW_NAME_KEY);
     return new FlowId().setFlowGroup(flowGroup).setFlowName(flowName);
@@ -113,6 +116,17 @@ public class DagManagerUtils {
     return "(flowGroup: " + flowid.getFlowGroup() + ", flowName: " + flowid.getFlowName() + ", flowExecutionId: " + flowExecutionId + ")";
   }
 
+  /**
+   * Returns a fully-qualified {@link Dag} name that includes: (flowGroup, flowName, flowExecutionId).
+   * @param dagNode
+   * @return fully qualified name of the underlying {@link Dag}.
+   */
+  static String getFullyQualifiedDagName(DagNode<JobExecutionPlan> dagNode) {
+    FlowId flowid = getFlowId(dagNode);
+    long flowExecutionId = getFlowExecId(dagNode);
+    return "(flowGroup: " + flowid.getFlowGroup() + ", flowName: " + flowid.getFlowName() + ", flowExecutionId: " + flowExecutionId + ")";
+  }
+
   static String getJobName(DagNode<JobExecutionPlan> dagNode) {
     return dagNode.getValue().getJobSpec().getConfig().getString(ConfigurationKeys.JOB_NAME_KEY);
   }
@@ -168,7 +182,7 @@ public class DagManagerUtils {
       DagNode<JobExecutionPlan> node = nodesToExpand.poll();
       ExecutionStatus executionStatus = getExecutionStatus(node);
       boolean addFlag = true;
-      if (executionStatus == ExecutionStatus.PENDING) {
+      if (executionStatus == ExecutionStatus.PENDING || executionStatus == ExecutionStatus.PENDING_RETRY) {
         //Add a node to be executed next, only if all of its parent nodes are COMPLETE.
         List<DagNode<JobExecutionPlan>> parentNodes = dag.getParents(node);
         for (DagNode<JobExecutionPlan> parentNode : parentNodes) {
@@ -236,6 +250,22 @@ public class DagManagerUtils {
     return jobConfig.hasPath(ConfigurationKeys.GOBBLIN_FLOW_SLA_TIME)
         ? slaTimeUnit.toMillis(jobConfig.getLong(ConfigurationKeys.GOBBLIN_FLOW_SLA_TIME))
         : NO_SLA;
+  }
+
+  /**
+   * get the job start sla from the dag node config.
+   * if time unit is not provided, it assumes time unit is minute.
+   * @param dagNode dag node for which flow start sla is to be retrieved
+   * @return job start sla in ms
+   */
+  static long getJobStartSla(DagNode<JobExecutionPlan> dagNode) {
+    Config jobConfig = dagNode.getValue().getJobSpec().getConfig();
+    TimeUnit slaTimeUnit = TimeUnit.valueOf(ConfigUtils.getString(
+        jobConfig, ConfigurationKeys.GOBBLIN_JOB_START_SLA_TIME_UNIT, ConfigurationKeys.DEFAULT_GOBBLIN_JOB_START_SLA_TIME_UNIT));
+
+    return slaTimeUnit.toMillis(jobConfig.hasPath(ConfigurationKeys.GOBBLIN_JOB_START_SLA_TIME)
+        ? jobConfig.getLong(ConfigurationKeys.GOBBLIN_JOB_START_SLA_TIME)
+        : ConfigurationKeys.DEFAULT_GOBBLIN_JOB_START_SLA_TIME);
   }
 
   static int getDagQueueId(Dag<JobExecutionPlan> dag, int numThreads) {

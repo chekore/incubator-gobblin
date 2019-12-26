@@ -66,6 +66,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.apache.gobblin.config.ConfigBuilder;
 import org.apache.gobblin.configuration.ConfigurationKeys;
+import org.apache.gobblin.data.management.retention.profile.ConfigurableGlobDatasetFinder;
 import org.apache.gobblin.runtime.api.FlowSpec;
 import org.apache.gobblin.runtime.api.JobSpec;
 import org.apache.gobblin.runtime.api.Spec;
@@ -246,7 +247,7 @@ public class MultiHopFlowCompilerTest {
     String expectedJobName1 = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
         join(flowGroup, flowName, "Distcp", "LocalFS-1", "HDFS-1", "localToHdfs");
     String jobName1 = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
-    Assert.assertEquals(jobName1, expectedJobName1);
+    Assert.assertTrue(jobName1.startsWith(expectedJobName1));
     String from = jobConfig.getString("from");
     String to = jobConfig.getString("to");
     Assert.assertEquals(from, "/data/out/testTeam/testDataset");
@@ -258,7 +259,7 @@ public class MultiHopFlowCompilerTest {
     String targetFsUri = jobConfig.getString("target.filebased.fs.uri");
     Assert.assertEquals(targetFsUri, "hdfs://hadoopnn01.grid.linkedin.com:8888/");
     Assert.assertEquals(jobConfig.getString("writer.fs.uri"), targetFsUri);
-    Assert.assertEquals(jobConfig.getString("gobblin.dataset.pattern"), from);
+    Assert.assertEquals(new Path(jobConfig.getString("gobblin.dataset.pattern")), new Path(from));
     Assert.assertEquals(jobConfig.getString("data.publisher.final.dir"), to);
     Assert.assertEquals(jobConfig.getString("type"), "java");
     Assert.assertEquals(jobConfig.getString("job.class"), "org.apache.gobblin.runtime.local.LocalJobLauncher");
@@ -276,7 +277,7 @@ public class MultiHopFlowCompilerTest {
     String expectedJobName2 = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
         join(flowGroup, flowName, "ConvertToJsonAndEncrypt", "HDFS-1", "HDFS-1", "hdfsConvertToJsonAndEncrypt");
     String jobName2 = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
-    Assert.assertEquals(jobName2, expectedJobName2);
+    Assert.assertTrue(jobName2.startsWith(expectedJobName2));
     Assert.assertEquals(jobConfig.getString(ConfigurationKeys.JOB_DEPENDENCIES), jobName1);
     from = jobConfig.getString("from");
     to = jobConfig.getString("to");
@@ -296,7 +297,7 @@ public class MultiHopFlowCompilerTest {
     String expectedJobName3 = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
         join(flowGroup, flowName, "Distcp", "HDFS-1", "HDFS-3", "hdfsToHdfs");
     String jobName3 = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
-    Assert.assertEquals(jobName3, expectedJobName3);
+    Assert.assertTrue(jobName3.startsWith(expectedJobName3));
     Assert.assertEquals(jobConfig.getString(ConfigurationKeys.JOB_DEPENDENCIES), jobName2);
     from = jobConfig.getString("from");
     to = jobConfig.getString("to");
@@ -320,7 +321,7 @@ public class MultiHopFlowCompilerTest {
     String expectedJobName4 = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
         join(flowGroup, flowName, "DistcpToADL", "HDFS-3", "ADLS-1", "hdfsToAdl");
     String jobName4 = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
-    Assert.assertEquals(jobName4, expectedJobName4);
+    Assert.assertTrue(jobName4.startsWith(expectedJobName4));
     Assert.assertEquals(jobConfig.getString(ConfigurationKeys.JOB_DEPENDENCIES), jobName3);
     from = jobConfig.getString("from");
     to = jobConfig.getString("to");
@@ -383,7 +384,7 @@ public class MultiHopFlowCompilerTest {
       for (DagNode<JobExecutionPlan> dagNode : currentHopNodes) {
         Config jobConfig = dagNode.getValue().getJobSpec().getConfig();
         String jobName = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
-        Assert.assertTrue(jobNames.contains(jobName));
+        Assert.assertTrue(jobNames.stream().anyMatch(jobName::startsWith));
         log.warn(jobName);
         nextHopNodes.addAll(jobDag.getChildren(dagNode));
       }
@@ -419,7 +420,7 @@ public class MultiHopFlowCompilerTest {
     String expectedJobName1 = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
         join(flowGroup, flowName, "Distcp", "LocalFS-1", "HDFS-2", "localToHdfs");
     String jobName1 = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
-    Assert.assertEquals(jobName1, expectedJobName1);
+    Assert.assertTrue(jobName1.startsWith(expectedJobName1));
     String from = jobConfig.getString("from");
     String to = jobConfig.getString("to");
     Assert.assertEquals(from, "/data/out/testTeam/testDataset");
@@ -431,7 +432,7 @@ public class MultiHopFlowCompilerTest {
     String targetFsUri = jobConfig.getString("target.filebased.fs.uri");
     Assert.assertEquals(targetFsUri, "hdfs://hadoopnn02.grid.linkedin.com:8888/");
     Assert.assertEquals(jobConfig.getString("writer.fs.uri"), targetFsUri);
-    Assert.assertEquals(jobConfig.getString("gobblin.dataset.pattern"), from);
+    Assert.assertEquals(new Path(jobConfig.getString("gobblin.dataset.pattern")), new Path(from));
     Assert.assertEquals(jobConfig.getString("data.publisher.final.dir"), to);
     Assert.assertEquals(jobConfig.getString("type"), "java");
     Assert.assertEquals(jobConfig.getString("job.class"), "org.apache.gobblin.runtime.local.LocalJobLauncher");
@@ -449,7 +450,7 @@ public class MultiHopFlowCompilerTest {
     String expectedJobName2 = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
         join(flowGroup, flowName, "ConvertToJsonAndEncrypt", "HDFS-2", "HDFS-2", "hdfsConvertToJsonAndEncrypt");
     String jobName2 = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
-    Assert.assertEquals(jobName2, expectedJobName2);
+    Assert.assertTrue(jobName2.startsWith(expectedJobName2));
     Assert.assertEquals(jobConfig.getString(ConfigurationKeys.JOB_DEPENDENCIES), jobName1);
     from = jobConfig.getString("from");
     to = jobConfig.getString("to");
@@ -469,7 +470,7 @@ public class MultiHopFlowCompilerTest {
     String expectedJobName3 = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
         join(flowGroup, flowName, "Distcp", "HDFS-2", "HDFS-4", "hdfsToHdfs");
     String jobName3 = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
-    Assert.assertEquals(jobName3, expectedJobName3);
+    Assert.assertTrue(jobName3.startsWith(expectedJobName3));
     Assert.assertEquals(jobConfig.getString(ConfigurationKeys.JOB_DEPENDENCIES), jobName2);
     from = jobConfig.getString("from");
     to = jobConfig.getString("to");
@@ -494,7 +495,7 @@ public class MultiHopFlowCompilerTest {
     String expectedJobName4 = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
         join(flowGroup, flowName, "DistcpToADL", "HDFS-4", "ADLS-1", "hdfsToAdl");
     String jobName4 = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
-    Assert.assertEquals(jobName4, expectedJobName4);
+    Assert.assertTrue(jobName4.startsWith(expectedJobName4));
     Assert.assertEquals(jobConfig.getString(ConfigurationKeys.JOB_DEPENDENCIES), jobName3);
     from = jobConfig.getString("from");
     to = jobConfig.getString("to");
@@ -544,7 +545,7 @@ public class MultiHopFlowCompilerTest {
     String expectedJobName = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
         join("testFlowGroup", "testFlowName", "Distcp", "HDFS-1", "HDFS-3", "hdfsToHdfs");
     String jobName = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
-    Assert.assertEquals(jobName, expectedJobName);
+    Assert.assertTrue(jobName.startsWith(expectedJobName));
   }
 
 
@@ -567,7 +568,7 @@ public class MultiHopFlowCompilerTest {
     for (DagNode<JobExecutionPlan> dagNode : jobDag.getStartNodes()) {
       Config jobConfig = dagNode.getValue().getJobSpec().getConfig();
       String jobName = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
-      Assert.assertTrue(jobNames.contains(jobName));
+      Assert.assertTrue(jobNames.stream().anyMatch(jobName::startsWith));
     }
 
     //Second hop must be from HDFS-1/HDFS-2 to HDFS-3/HDFS-4 respectively.
@@ -581,11 +582,76 @@ public class MultiHopFlowCompilerTest {
       Assert.assertEquals(nextNodes.size(), 1);
       Config jobConfig = nextNodes.get(0).getValue().getJobSpec().getConfig();
       String jobName = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
-      Assert.assertTrue(jobNames.contains(jobName));
+      Assert.assertTrue(jobNames.stream().anyMatch(jobName::startsWith));
     }
   }
 
   @Test (dependsOnMethods = "testMulticastPath")
+  public void testCompileMultiDatasetFlow() throws Exception {
+    FlowSpec spec = createFlowSpec("flow/flow3.conf", "HDFS-1", "HDFS-3", true, false);
+
+    Dag<JobExecutionPlan> dag = specCompiler.compileFlow(spec);
+
+    // Should be 3 parallel jobs, one for each dataset, with copy -> retention
+    Assert.assertEquals(dag.getNodes().size(), 6);
+    Assert.assertEquals(dag.getEndNodes().size(), 3);
+    Assert.assertEquals(dag.getStartNodes().size(), 3);
+
+    String copyJobName = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
+        join("testFlowGroup", "testFlowName", "Distcp", "HDFS-1", "HDFS-3", "hdfsToHdfs");
+    for (DagNode<JobExecutionPlan> dagNode : dag.getStartNodes()) {
+      Config jobConfig = dagNode.getValue().getJobSpec().getConfig();
+      String jobName = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
+      Assert.assertTrue(jobName.startsWith(copyJobName));
+    }
+
+    String retentionJobName = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
+        join("testFlowGroup", "testFlowName", "SnapshotRetention", "HDFS-3", "HDFS-3", "hdfsRetention");
+    for (DagNode<JobExecutionPlan> dagNode : dag.getEndNodes()) {
+      Config jobConfig = dagNode.getValue().getJobSpec().getConfig();
+      String jobName = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
+      Assert.assertTrue(jobName.startsWith(retentionJobName));
+    }
+  }
+
+  @Test (dependsOnMethods = "testCompileMultiDatasetFlow")
+  public void testCompileCombinedDatasetFlow() throws Exception {
+    FlowSpec spec = createFlowSpec("flow/flow4.conf", "HDFS-1", "HDFS-3", true, false);
+
+    Dag<JobExecutionPlan> dag = specCompiler.compileFlow(spec);
+
+    // Should be 2 jobs, each containing 3 datasets
+    Assert.assertEquals(dag.getNodes().size(), 2);
+    Assert.assertEquals(dag.getEndNodes().size(), 1);
+    Assert.assertEquals(dag.getStartNodes().size(), 1);
+
+    String copyJobName = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
+        join("testFlowGroup", "testFlowName", "Distcp", "HDFS-1", "HDFS-3", "hdfsToHdfs");
+    Config jobConfig = dag.getStartNodes().get(0).getValue().getJobSpec().getConfig();
+    String jobName = jobConfig.getString(ConfigurationKeys.JOB_NAME_KEY);
+    Assert.assertTrue(jobName.startsWith(copyJobName));
+    Assert.assertTrue(jobConfig.getString(ConfigurableGlobDatasetFinder.DATASET_FINDER_PATTERN_KEY).endsWith("{dataset0,dataset1,dataset2}"));
+
+    String retentionJobName = Joiner.on(JobExecutionPlan.Factory.JOB_NAME_COMPONENT_SEPARATION_CHAR).
+        join("testFlowGroup", "testFlowName", "SnapshotRetention", "HDFS-3", "HDFS-3", "hdfsRetention");
+    Config jobConfig2 = dag.getEndNodes().get(0).getValue().getJobSpec().getConfig();
+    String jobName2 = jobConfig2.getString(ConfigurationKeys.JOB_NAME_KEY);
+    Assert.assertTrue(jobName2.startsWith(retentionJobName));
+    Assert.assertTrue(jobConfig2.getString(ConfigurableGlobDatasetFinder.DATASET_FINDER_PATTERN_KEY).endsWith("{dataset0,dataset1,dataset2}"));
+  }
+
+  @Test (dependsOnMethods = "testCompileCombinedDatasetFlow")
+  public void testUnresolvedFlow() throws Exception {
+    FlowSpec spec = createFlowSpec("flow/flow5.conf", "HDFS-1", "HDFS-3", false, false);
+
+    Dag<JobExecutionPlan> dag = specCompiler.compileFlow(spec);
+
+    Assert.assertTrue(dag.isEmpty());
+    Assert.assertEquals(spec.getCompilationErrors().size(), 1);
+    Assert.assertTrue(spec.getCompilationErrors().iterator().next().contains("user.to.proxy"));
+  }
+
+  @Test (dependsOnMethods = "testUnresolvedFlow")
   public void testGitFlowGraphMonitorService()
       throws IOException, GitAPIException, URISyntaxException, InterruptedException {
     File remoteDir = new File(TESTDIR + "/remote");

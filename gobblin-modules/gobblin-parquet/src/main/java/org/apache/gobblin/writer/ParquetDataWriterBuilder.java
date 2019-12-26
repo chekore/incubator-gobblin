@@ -19,8 +19,6 @@ package org.apache.gobblin.writer;
 import java.io.IOException;
 import java.util.Optional;
 
-import org.apache.gobblin.configuration.State;
-import org.apache.gobblin.util.ForkOperatorUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 
@@ -33,6 +31,9 @@ import parquet.hadoop.ParquetWriter;
 import parquet.hadoop.example.GroupWriteSupport;
 import parquet.hadoop.metadata.CompressionCodecName;
 import parquet.schema.MessageType;
+
+import org.apache.gobblin.configuration.State;
+import org.apache.gobblin.util.ForkOperatorUtils;
 
 import static org.apache.gobblin.configuration.ConfigurationKeys.LOCAL_FS_URI;
 import static org.apache.gobblin.configuration.ConfigurationKeys.WRITER_CODEC_TYPE;

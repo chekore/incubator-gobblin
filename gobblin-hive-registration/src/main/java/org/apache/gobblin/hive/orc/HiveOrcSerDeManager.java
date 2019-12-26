@@ -61,8 +61,6 @@ import org.apache.gobblin.util.HadoopUtils;
  */
 @Slf4j
 public class HiveOrcSerDeManager extends HiveSerDeManager {
-  // Schema is in the format of TypeDescriptor
-  public static final String SCHEMA_LITERAL = "orc.schema.literal";
 
   // Extensions of files containing ORC data
   public static final String FILE_EXTENSIONS_KEY = "hiveOrcSerdeManager.fileExtensions";
@@ -83,6 +81,9 @@ public class HiveOrcSerDeManager extends HiveSerDeManager {
 
   public static final String HIVE_SPEC_SCHEMA_READING_TIMER = "hiveOrcSerdeManager.schemaReadTimer";
 
+  public static final String ENABLED_ORC_TYPE_CHECK = "hiveOrcSerdeManager.enableFormatCheck";
+  public static final boolean DEFAULT_ENABLED_ORC_TYPE_CHECK = false;
+
   private static final int EXPECTED_FOOTER_SIZE = 16 * 1024;
   private static final String ORC_FORMAT = "ORC";
   private static final ByteBuffer MAGIC_BUFFER = ByteBuffer.wrap(ORC_FORMAT.getBytes(Charsets.UTF_8));
@@ -91,6 +92,7 @@ public class HiveOrcSerDeManager extends HiveSerDeManager {
   private final HiveSerDeWrapper serDeWrapper;
   private final List<String> fileExtensions;
   private final List<String> ignoredFilePrefixes;
+  private final boolean checkOrcFormat;
   private final MetricContext metricContext;
 
   public HiveOrcSerDeManager(State props)
@@ -102,6 +104,7 @@ public class HiveOrcSerDeManager extends HiveSerDeManager {
     this.fileExtensions = extensions.isEmpty() ? ImmutableList.of("") : extensions;
 
     this.ignoredFilePrefixes = props.getPropAsList(IGNORED_FILE_PREFIXES_KEY, DEFAULT_IGNORED_FILE_PREFIXES);
+    this.checkOrcFormat = props.getPropAsBoolean(ENABLED_ORC_TYPE_CHECK, DEFAULT_ENABLED_ORC_TYPE_CHECK);
     this.metricContext = Instrumented.getMetricContext(props, HiveOrcSerDeManager.class);
     this.serDeWrapper = HiveSerDeWrapper.get(props.getProp(SERDE_TYPE_KEY, DEFAULT_SERDE_TYPE),
         Optional.of(props.getProp(INPUT_FORMAT_CLASS_KEY, DEFAULT_INPUT_FORMAT_CLASS)),
@@ -109,10 +112,13 @@ public class HiveOrcSerDeManager extends HiveSerDeManager {
   }
 
   @Override
+  //Using LIST_COLUMNS and LIST_COLUMN_TYPES to compare schema
   public boolean haveSameSchema(HiveRegistrationUnit unit1, HiveRegistrationUnit unit2)
       throws IOException {
-    if (unit1.getSerDeProps().contains(SCHEMA_LITERAL) && unit2.getSerDeProps().contains(SCHEMA_LITERAL)) {
-      return unit1.getSerDeProps().getProp(SCHEMA_LITERAL).equals(unit2.getSerDeProps().getProp(SCHEMA_LITERAL));
+    if (unit1.getSerDeProps().contains(serdeConstants.LIST_COLUMNS) && unit2.getSerDeProps().contains(serdeConstants.LIST_COLUMNS)
+    && unit1.getSerDeProps().contains(serdeConstants.LIST_COLUMN_TYPES) && unit2.getSerDeProps().contains(serdeConstants.LIST_COLUMN_TYPES)) {
+      return unit1.getSerDeProps().getProp(serdeConstants.LIST_COLUMNS).equals(unit2.getSerDeProps().getProp(serdeConstants.LIST_COLUMNS))
+          && unit1.getSerDeProps().getProp(serdeConstants.LIST_COLUMN_TYPES).equals(unit2.getSerDeProps().getProp(serdeConstants.LIST_COLUMN_TYPES));
     } else {
       return false;
     }
@@ -147,18 +153,18 @@ public class HiveOrcSerDeManager extends HiveSerDeManager {
     if (source.getOutputFormat().isPresent()) {
       target.setOutputFormat(source.getOutputFormat().get());
     }
-    if (source.getSerDeProps().contains(SCHEMA_LITERAL)) {
-      target.setSerDeProp(SCHEMA_LITERAL, source.getSerDeProps().getProp(SCHEMA_LITERAL));
-    }
   }
 
   @Override
   public void updateSchema(HiveRegistrationUnit existingUnit, HiveRegistrationUnit newUnit)
       throws IOException {
     Preconditions.checkArgument(
-        newUnit.getSerDeProps().contains(SCHEMA_LITERAL));
+        newUnit.getSerDeProps().contains(serdeConstants.LIST_COLUMNS));
+    Preconditions.checkArgument(
+        newUnit.getSerDeProps().contains(serdeConstants.LIST_COLUMN_TYPES));
 
-    existingUnit.setSerDeProp(SCHEMA_LITERAL, newUnit.getSerDeProps().getProp(SCHEMA_LITERAL));
+    existingUnit.setSerDeProp(serdeConstants.LIST_COLUMNS, newUnit.getSerDeProps().getProp(serdeConstants.LIST_COLUMNS));
+    existingUnit.setSerDeProp(serdeConstants.LIST_COLUMN_TYPES, newUnit.getSerDeProps().getProp(serdeConstants.LIST_COLUMN_TYPES));
   }
 
   /**
@@ -177,7 +183,7 @@ public class HiveOrcSerDeManager extends HiveSerDeManager {
           try {
             return ignoredFilePrefixes.stream().noneMatch(e -> path.getName().startsWith(e))
                 && fileExtensions.stream().anyMatch(e -> path.getName().endsWith(e))
-                && isORC(path, fs);
+                && (!checkOrcFormat || isORC(path, fs));
           } catch(IOException e) {
             log.error("Error checking file for schema retrieval", e);
             return false;
@@ -199,6 +205,10 @@ public class HiveOrcSerDeManager extends HiveSerDeManager {
   /**
    * Determine if a file is ORC format.
    * Steal ideas & code from presto/OrcReader under Apache License 2.0.
+   *
+   * Note: This operation is pretty expensive when it comes to checking magicBytes for each file while listing,
+   * as itself require getFileStatus and open the file.  In normal cases, consider disable it if the confidene level
+   * of format consistency is high enough.
    */
   private static boolean isORC(Path file, FileSystem fs)
       throws IOException {
@@ -252,14 +262,11 @@ public class HiveOrcSerDeManager extends HiveSerDeManager {
    * org.apache.hadoop.hive.serde.serdeConstants#LIST_COLUMNS and
    * org.apache.hadoop.hive.serde.serdeConstants#LIST_COLUMN_TYPES
    *
-   * Keeping {@link #SCHEMA_LITERAL} will be a nice-to-have thing but not actually necessary in terms of functionality.
    */
   protected void addSchemaPropertiesHelper(Path path, HiveRegistrationUnit hiveUnit) throws IOException {
     TypeInfo schema = getSchemaFromLatestFile(path, this.fs);
     if (schema instanceof StructTypeInfo) {
       StructTypeInfo structTypeInfo = (StructTypeInfo) schema;
-
-      hiveUnit.setSerDeProp(SCHEMA_LITERAL, schema);
       hiveUnit.setSerDeProp(serdeConstants.LIST_COLUMNS,
           Joiner.on(",").join(structTypeInfo.getAllStructFieldNames()));
       hiveUnit.setSerDeProp(serdeConstants.LIST_COLUMN_TYPES,
